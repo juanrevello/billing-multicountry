@@ -5,8 +5,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from billing.api import health
+from billing.api import health, providers
 from billing.config import get_settings
+from billing.core.registry import discover, provider_classes
 from billing.db.migrate import upgrade_to_head
 from billing.logging import setup_logging
 
@@ -20,6 +21,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # Alembic's env.py runs its own event loop, so it needs a separate thread.
     await asyncio.to_thread(upgrade_to_head)
     logger.info("migrations applied")
+    discover()
+    logger.info(
+        "providers registered",
+        extra={"countries": [cls.country_code for cls in provider_classes()]},
+    )
     logger.info("app started", extra={"environment": settings.environment})
     yield
     logger.info("app stopped")
@@ -27,3 +33,4 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Billing Multi-Country", version="0.1.0", lifespan=lifespan)
 app.include_router(health.router)
+app.include_router(providers.router)
