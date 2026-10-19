@@ -3,7 +3,7 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 
-MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
+MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 
 
 def upgrade_to_head() -> None:

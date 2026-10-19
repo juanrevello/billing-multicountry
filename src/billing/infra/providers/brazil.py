@@ -1,0 +1,45 @@
+import uuid
+from typing import Any
+
+from billing.domain.provider import InvoiceData, ProviderRejectedError, ProviderResult
+from billing.domain.registry import register
+from billing.infra.http import HttpInvoiceProvider, response_body
+
+
+@register
+class BrazilProvider(HttpInvoiceProvider):
+    country_code = "BR"
+    name = "sefaz"
+    supported_currencies = frozenset({"BRL"})
+
+    def build_payload(self, invoice: InvoiceData) -> dict[str, Any]:
+        return {
+            "reference": str(invoice.invoice_id),
+            "recipient": {"document": invoice.entity_id},
+            "amount_cents": int(invoice.amount * 100),
+            "currency": invoice.currency,
+        }
+
+    async def issue(self, invoice: InvoiceData) -> ProviderResult:
+        response = await self.request("POST", "/nfe", json=self.build_payload(invoice))
+        body = response_body(response)
+        if response.status_code != 200:
+            raise ProviderRejectedError(
+                _error_message(body), status_code=response.status_code, body=body
+            )
+        return ProviderResult(body["access_key"], response.status_code, body)
+
+    async def lookup(self, invoice_id: uuid.UUID) -> ProviderResult | None:
+        response = await self.request("GET", f"/nfe/{invoice_id}")
+        body = response_body(response)
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise ProviderRejectedError(
+                _error_message(body), status_code=response.status_code, body=body
+            )
+        return ProviderResult(body["access_key"], response.status_code, body)
+
+
+def _error_message(body: dict[str, Any]) -> str:
+    return f"{body.get('code')}: {body.get('reason')}"

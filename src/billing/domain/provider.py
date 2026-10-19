@@ -6,13 +6,6 @@ from typing import Any, ClassVar
 
 
 @dataclass(frozen=True)
-class ProviderConfig:
-    timeout_seconds: float
-    max_retries: int
-    backoff_base_seconds: float
-
-
-@dataclass(frozen=True)
 class InvoiceData:
     invoice_id: uuid.UUID
     entity_id: str
@@ -58,9 +51,6 @@ class InvoiceProvider(ABC):
     name: ClassVar[str]
     supported_currencies: ClassVar[frozenset[str]]
 
-    def __init__(self, config: ProviderConfig) -> None:
-        self.config = config
-
     @abstractmethod
     def build_payload(self, invoice: InvoiceData) -> dict[str, Any]: ...
 
@@ -69,3 +59,12 @@ class InvoiceProvider(ABC):
 
     @abstractmethod
     async def lookup(self, invoice_id: uuid.UUID) -> ProviderResult | None: ...
+
+    async def aclose(self) -> None:
+        """Release resources such as HTTP connections. No-op by default."""
+        return None
+
+
+# Transient errors and timeouts are retried (the provider deduplicates by invoice_id);
+# rejections never are, since the same data would be rejected again.
+RETRYABLE_ERRORS: tuple[type[ProviderError], ...] = (ProviderTransientError, ProviderTimeoutError)

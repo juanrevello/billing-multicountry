@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from billing.core.registry import provider_classes
+from billing.domain.registry import provider_classes
 
 router = APIRouter(tags=["providers"])
 

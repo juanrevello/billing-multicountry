@@ -6,7 +6,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from billing.config import get_settings
-from billing.db.models import Base
+from billing.infra.db.models import Base
 
 target_metadata = Base.metadata
 

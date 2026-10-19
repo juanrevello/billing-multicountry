@@ -18,6 +18,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from billing.domain.invoice import AttemptKind, AttemptOutcome, InvoiceStatus
+
 # Deterministic constraint names keep Alembic migrations stable.
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -30,26 +32,6 @@ NAMING_CONVENTION = {
 
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
-
-
-class InvoiceStatus(StrEnum):
-    PENDING = "pending"
-    ISSUED = "issued"
-    FAILED = "failed"
-
-
-class AttemptKind(StrEnum):
-    ISSUE = "issue"
-    LOOKUP = "lookup"
-
-
-class AttemptOutcome(StrEnum):
-    IN_FLIGHT = "in_flight"
-    SUCCESS = "success"
-    RETRYABLE_ERROR = "retryable_error"
-    REJECTED = "rejected"
-    TIMEOUT = "timeout"
-    NOT_FOUND = "not_found"
 
 
 def _str_enum(enum_cls: type[StrEnum], name: str) -> Enum:
