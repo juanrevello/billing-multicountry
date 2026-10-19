@@ -32,5 +32,22 @@ services:
       timeout: 3s
       retries: 10
 
+  mock-providers:
+    build: .
+    command: ["uvicorn", "mock_providers.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      MOCK_SUCCESS_WEIGHT: 80
+      MOCK_ERROR_WEIGHT: 10
+      MOCK_TIMEOUT_WEIGHT: 5
+      MOCK_REJECT_WEIGHT: 5
+      MOCK_TIMEOUT_SECONDS: 30
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   pgdata:

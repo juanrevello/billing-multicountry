@@ -45,3 +45,6 @@ name = "ruff_format"
 type = "module"
 module = "ruff"
 options = "format REVISION_SCRIPT_FILENAME"
+
+[tool.uv.build-backend]
+module-name = ["billing", "mock_providers"]
