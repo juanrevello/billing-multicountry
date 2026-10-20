@@ -217,15 +217,6 @@
       },
       "AttemptOut": {
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "attempt_number": {
-            "type": "integer",
-            "title": "Attempt Number"
-          },
           "kind": {
             "$ref": "#/components/schemas/AttemptKind"
           },
@@ -276,18 +267,6 @@
             "format": "date-time",
             "title": "Started At"
           },
-          "finished_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
           "duration_ms": {
             "anyOf": [
               {
@@ -302,8 +281,6 @@
         },
         "type": "object",
         "required": [
-          "id",
-          "attempt_number",
           "kind",
           "outcome",
           "request_payload",
@@ -311,7 +288,6 @@
           "response_body",
           "error",
           "started_at",
-          "finished_at",
           "duration_ms"
         ],
         "title": "AttemptOut"
@@ -369,37 +345,10 @@
             "type": "string",
             "title": "Country Code"
           },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "error_detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Detail"
-          },
           "created_at": {
             "type": "string",
             "format": "date-time",
             "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
           },
           "attempts": {
             "items": {
@@ -419,10 +368,7 @@
           "amount",
           "currency",
           "country_code",
-          "error_code",
-          "error_detail",
           "created_at",
-          "updated_at",
           "attempts"
         ],
         "title": "InvoiceDetailOut"
@@ -504,54 +450,6 @@
               }
             ],
             "title": "External Reference"
-          },
-          "entity_id": {
-            "type": "string",
-            "title": "Entity Id"
-          },
-          "amount": {
-            "type": "string",
-            "title": "Amount"
-          },
-          "currency": {
-            "type": "string",
-            "title": "Currency"
-          },
-          "country_code": {
-            "type": "string",
-            "title": "Country Code"
-          },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "error_detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Detail"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
           }
         },
         "type": "object",
@@ -559,15 +457,7 @@
           "invoice_id",
           "status",
           "provider_used",
-          "external_reference",
-          "entity_id",
-          "amount",
-          "currency",
-          "country_code",
-          "error_code",
-          "error_detail",
-          "created_at",
-          "updated_at"
+          "external_reference"
         ],
         "title": "InvoiceOut"
       },

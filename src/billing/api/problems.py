@@ -1,6 +1,5 @@
 """RFC 9457 Problem Details for every error response."""
 
-import json
 import logging
 import uuid
 from http import HTTPStatus
@@ -91,7 +90,7 @@ def install_problem_handlers(app: FastAPI) -> None:
 
 
 def install_problem_schema(app: FastAPI) -> None:
-    """Register ProblemDetails in the spec and drop FastAPI's unused default error schemas."""
+    """Register ProblemDetails in the spec, where every problem_doc() response refers to it."""
 
     def openapi() -> dict[str, Any]:
         if app.openapi_schema is None:
@@ -103,9 +102,6 @@ def install_problem_schema(app: FastAPI) -> None:
             )
             schemas = spec.setdefault("components", {}).setdefault("schemas", {})
             schemas["ProblemDetails"] = ProblemDetails.model_json_schema()
-            for name in ("HTTPValidationError", "ValidationError"):
-                if f"#/components/schemas/{name}" not in json.dumps(spec["paths"]):
-                    schemas.pop(name, None)
             app.openapi_schema = spec
         return app.openapi_schema
 

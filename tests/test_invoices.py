@@ -41,7 +41,6 @@ def test_issue_ar_invoice(client: TestClient, providers: respx.MockRouter) -> No
     assert attempt["request_payload"] == sent
     assert attempt["response_status"] == 201
     assert attempt["response_body"]["cae"] == AR_VOUCHER["cae"]
-    assert attempt["finished_at"] is not None
     assert attempt["duration_ms"] is not None
 
 
@@ -94,7 +93,6 @@ def test_timeout_leaves_invoice_pending(client: TestClient, providers: respx.Moc
     assert response.status_code == 202
     invoice = response.json()
     assert invoice["status"] == "pending"
-    assert invoice["error_code"] == "provider_timeout"
     assert outcomes(client, invoice["invoice_id"]) == ["issue:timeout"] * 3
 
 
@@ -149,7 +147,7 @@ def test_confirmation_without_persistence_is_reconciled(
         raise RuntimeError("database unavailable")
 
     with monkeypatch.context() as patch:
-        patch.setattr(InvoiceRepository, "finalize", database_down)
+        patch.setattr(InvoiceRepository, "set_status", database_down)
         crashed, key = post_invoice(client)
     assert crashed.status_code == 500
 

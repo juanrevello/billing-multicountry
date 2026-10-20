@@ -23,8 +23,8 @@ class ArgentinaProvider(HttpInvoiceProvider):
             "currency_code": CURRENCY_CODES[invoice.currency],
         }
 
-    async def issue(self, invoice: InvoiceData) -> ProviderResult:
-        response = await self.request("POST", "/vouchers", json=self.build_payload(invoice))
+    async def issue(self, payload: dict[str, Any]) -> ProviderResult:
+        response = await self.request("POST", "/vouchers", json=payload)
         body = response_body(response)
         if response.status_code not in (200, 201):
             raise ProviderRejectedError(

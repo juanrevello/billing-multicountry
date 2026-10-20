@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
@@ -44,17 +44,11 @@ class InvoiceRepository:
         self, invoice_id: uuid.UUID, kind: AttemptKind, request_payload: dict[str, Any]
     ) -> InvoiceAttempt:
         async with self._sessionmaker.begin() as session:
-            last = await session.scalar(
-                select(func.max(InvoiceAttempt.attempt_number)).where(
-                    InvoiceAttempt.invoice_id == invoice_id
-                )
-            )
             attempt = InvoiceAttempt(
                 invoice_id=invoice_id,
-                attempt_number=(last or 0) + 1,
                 kind=kind,
-                request_payload=request_payload,
                 outcome=AttemptOutcome.IN_FLIGHT,
+                request_payload=request_payload,
             )
             session.add(attempt)
         return attempt
@@ -78,31 +72,22 @@ class InvoiceRepository:
                     response_status=response_status,
                     response_body=response_body,
                     error=error,
-                    finished_at=func.now(),
                     duration_ms=duration_ms,
                 )
             )
 
-    async def finalize(
+    async def set_status(
         self,
         invoice_id: uuid.UUID,
-        *,
         status: InvoiceStatus,
         external_reference: str | None = None,
-        error_code: str | None = None,
-        error_detail: str | None = None,
     ) -> Invoice:
         """Never downgrades an issued invoice, e.g. if a concurrent retry already issued it."""
         async with self._sessionmaker.begin() as session:
             invoice = await session.scalar(
                 update(Invoice)
                 .where(Invoice.id == invoice_id, Invoice.status != InvoiceStatus.ISSUED)
-                .values(
-                    status=status,
-                    external_reference=external_reference,
-                    error_code=error_code,
-                    error_detail=error_detail,
-                )
+                .values(status=status, external_reference=external_reference)
                 .returning(Invoice)
             )
             return invoice or await session.get_one(Invoice, invoice_id)

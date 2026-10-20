@@ -20,8 +20,8 @@ class BrazilProvider(HttpInvoiceProvider):
             "currency": invoice.currency,
         }
 
-    async def issue(self, invoice: InvoiceData) -> ProviderResult:
-        response = await self.request("POST", "/nfe", json=self.build_payload(invoice))
+    async def issue(self, payload: dict[str, Any]) -> ProviderResult:
+        response = await self.request("POST", "/nfe", json=payload)
         body = response_body(response)
         if response.status_code != 200:
             raise ProviderRejectedError(

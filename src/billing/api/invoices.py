@@ -16,7 +16,8 @@ from billing.application.invoicing import (
     IssueResult,
     UnsupportedCurrencyError,
 )
-from billing.domain.invoice import AttemptKind, AttemptOutcome, InvoiceErrorCode, InvoiceStatus
+from billing.domain.invoice import AttemptKind, AttemptOutcome, InvoiceStatus
+from billing.domain.provider import ProviderRejectedError
 from billing.domain.registry import UnsupportedCountryError
 from billing.infra.db.repository import InvoiceRepository
 from billing.infra.db.session import sessionmaker
@@ -40,21 +41,11 @@ class InvoiceOut(BaseModel):
     status: InvoiceStatus
     provider_used: str = Field(validation_alias="provider")
     external_reference: str | None
-    entity_id: str
-    amount: Decimal
-    currency: str
-    country_code: str
-    error_code: str | None
-    error_detail: str | None
-    created_at: datetime
-    updated_at: datetime
 
 
 class AttemptOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
-    attempt_number: int
     kind: AttemptKind
     outcome: AttemptOutcome
     request_payload: dict[str, Any]
@@ -62,11 +53,15 @@ class AttemptOut(BaseModel):
     response_body: dict[str, Any] | None
     error: str | None
     started_at: datetime
-    finished_at: datetime | None
     duration_ms: int | None
 
 
 class InvoiceDetailOut(InvoiceOut):
+    entity_id: str
+    amount: Decimal
+    currency: str
+    country_code: str
+    created_at: datetime
     attempts: list[AttemptOut]
 
 
@@ -140,19 +135,19 @@ async def issue_invoice(
 def _issue_response(result: IssueResult) -> JSONResponse | InvoiceOut:
     invoice = result.invoice
     body = InvoiceOut.model_validate(invoice)
-    match invoice.status, invoice.error_code:
-        case InvoiceStatus.ISSUED, _ if result.replayed:
+    match invoice.status:
+        case InvoiceStatus.ISSUED if result.replayed:
             return JSONResponse(body.model_dump(mode="json"), status_code=200)
-        case InvoiceStatus.ISSUED, _:
+        case InvoiceStatus.ISSUED:
             return body
-        case InvoiceStatus.PENDING, _:
+        case InvoiceStatus.PENDING:
             return JSONResponse(body.model_dump(mode="json"), status_code=202)
-        case InvoiceStatus.FAILED, InvoiceErrorCode.PROVIDER_REJECTED:
+        case InvoiceStatus.FAILED if isinstance(result.error, ProviderRejectedError):
             raise Problem(
                 422,
                 "/problems/provider-rejected",
                 "Invoice rejected by provider",
-                invoice.error_detail,
+                str(result.error),
                 invoice_id=invoice.id,
                 invoice_status=invoice.status,
             )
@@ -161,7 +156,7 @@ def _issue_response(result: IssueResult) -> JSONResponse | InvoiceOut:
                 502,
                 "/problems/provider-unavailable",
                 "Provider unavailable",
-                invoice.error_detail,
+                str(result.error),
                 invoice_id=invoice.id,
                 invoice_status=invoice.status,
             )
