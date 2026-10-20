@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from billing.api import health, invoices, providers
-from billing.api.problems import install_problem_handlers
+from billing.api.problems import install_problem_handlers, install_problem_schema
 from billing.config import get_settings
 from billing.domain.registry import close_providers, discover, provider_classes
 from billing.infra.db.migrate import upgrade_to_head
@@ -37,8 +37,17 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     logger.info("app stopped")
 
 
-app = FastAPI(title="Billing Multi-Country", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Billing Multi-Country",
+    version="0.1.0",
+    description=(
+        "Issues invoices through a per-country provider, with idempotency (Idempotency-Key), "
+        "retries and a full audit trail of every provider call."
+    ),
+    lifespan=lifespan,
+)
 app.include_router(health.router)
 app.include_router(providers.router)
 app.include_router(invoices.router)
 install_problem_handlers(app)
+install_problem_schema(app)

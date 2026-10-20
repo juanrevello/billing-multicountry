@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from billing.api.problems import PROBLEM_MEDIA_TYPE, Problem
+from billing.api.problems import Problem, problem_doc
 from billing.application.invoicing import (
     IdempotencyKeyConflictError,
     InvoiceInProgressError,
@@ -83,20 +83,17 @@ IdempotencyKey = Annotated[
 ]
 
 
-def _problem_doc(description: str) -> dict[str, Any]:
-    return {"description": description, "content": {PROBLEM_MEDIA_TYPE: {}}}
-
-
 @router.post(
     "",
     status_code=201,
     response_model=InvoiceOut,
     responses={
+        201: {"description": "Invoice issued"},
         200: {"model": InvoiceOut, "description": "Replay of an invoice already issued"},
         202: {"model": InvoiceOut, "description": "Provider timed out; outcome unknown"},
-        409: _problem_doc("Idempotency-Key reused with another body, or a concurrent request"),
-        422: _problem_doc("Invalid input, unsupported country/currency or provider rejection"),
-        502: _problem_doc("Provider unavailable after retries"),
+        409: problem_doc("Idempotency-Key reused with another body, or a concurrent request"),
+        422: problem_doc("Invalid input, unsupported country/currency or provider rejection"),
+        502: problem_doc("Provider unavailable after retries"),
     },
 )
 async def issue_invoice(
@@ -173,7 +170,11 @@ def _issue_response(result: IssueResult) -> JSONResponse | InvoiceOut:
 @router.get(
     "/{invoice_id}",
     response_model=InvoiceDetailOut,
-    responses={404: _problem_doc("Invoice not found")},
+    responses={
+        200: {"description": "Invoice with its full audit trail"},
+        404: problem_doc("Invoice not found"),
+        422: problem_doc("Invalid invoice_id"),
+    },
 )
 async def get_invoice(invoice_id: uuid.UUID, service: Service):
     invoice = await service.get(invoice_id)

@@ -1,18 +1,41 @@
 """RFC 9457 Problem Details for every error response."""
 
+import json
 import logging
+import uuid
 from http import HTTPStatus
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
+
+
+class ProblemDetails(BaseModel):
+    """RFC 9457 body; the optional fields are extensions present only when they apply."""
+
+    type: str
+    title: str
+    status: int
+    detail: str | None = None
+    invoice_id: uuid.UUID | None = None
+    invoice_status: str | None = None
+    supported_currencies: list[str] | None = None
+    errors: list[dict[str, Any]] | None = None
+
+
+def problem_doc(description: str) -> dict[str, Any]:
+    """OpenAPI entry for an error response served as application/problem+json."""
+    schema = {"$ref": "#/components/schemas/ProblemDetails"}
+    return {"description": description, "content": {PROBLEM_MEDIA_TYPE: {"schema": schema}}}
 
 
 class Problem(Exception):
@@ -65,3 +88,25 @@ def install_problem_handlers(app: FastAPI) -> None:
     async def _unexpected(_: Request, exc: Exception) -> JSONResponse:
         logger.exception("unhandled error")
         return problem_response(500, "about:blank", "Internal Server Error")
+
+
+def install_problem_schema(app: FastAPI) -> None:
+    """Register ProblemDetails in the spec and drop FastAPI's unused default error schemas."""
+
+    def openapi() -> dict[str, Any]:
+        if app.openapi_schema is None:
+            spec = get_openapi(
+                title=app.title,
+                version=app.version,
+                description=app.description,
+                routes=app.routes,
+            )
+            schemas = spec.setdefault("components", {}).setdefault("schemas", {})
+            schemas["ProblemDetails"] = ProblemDetails.model_json_schema()
+            for name in ("HTTPValidationError", "ValidationError"):
+                if f"#/components/schemas/{name}" not in json.dumps(spec["paths"]):
+                    schemas.pop(name, None)
+            app.openapi_schema = spec
+        return app.openapi_schema
+
+    app.openapi = openapi  # type: ignore[method-assign]
