@@ -66,7 +66,7 @@ def test_transient_error_is_retried(client: TestClient, providers: respx.MockRou
 
     assert response.status_code == 201
     invoice_id = response.json()["invoice_id"]
-    assert outcomes(client, invoice_id) == ["issue:retryable_error", "issue:success"]
+    assert outcomes(client, invoice_id) == ["issue:transient_error", "issue:success"]
 
 
 def test_provider_unavailable_after_retries(
@@ -82,7 +82,7 @@ def test_provider_unavailable_after_retries(
     assert problem["type"] == "/problems/provider-unavailable"
     assert problem["invoice_status"] == "failed"
     assert route.call_count == 3  # first attempt + 2 retries
-    assert outcomes(client, problem["invoice_id"]) == ["issue:retryable_error"] * 3
+    assert outcomes(client, problem["invoice_id"]) == ["issue:transient_error"] * 3
 
 
 def test_timeout_leaves_invoice_pending(client: TestClient, providers: respx.MockRouter) -> None:
@@ -176,9 +176,9 @@ def test_failed_invoice_is_resumed_when_provider_recovers(
     assert retry.status_code == 201
     assert issue.call_count == 4
     assert outcomes(client, retry.json()["invoice_id"]) == [
-        "issue:retryable_error",
-        "issue:retryable_error",
-        "issue:retryable_error",
+        "issue:transient_error",
+        "issue:transient_error",
+        "issue:transient_error",
         "lookup:not_found",
         "issue:success",
     ]

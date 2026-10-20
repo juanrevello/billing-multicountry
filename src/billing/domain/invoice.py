@@ -15,7 +15,7 @@ class AttemptKind(StrEnum):
 class AttemptOutcome(StrEnum):
     IN_FLIGHT = "in_flight"
     SUCCESS = "success"
-    RETRYABLE_ERROR = "retryable_error"
+    TRANSIENT_ERROR = "transient_error"
     REJECTED = "rejected"
     TIMEOUT = "timeout"
     NOT_FOUND = "not_found"

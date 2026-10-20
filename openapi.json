@@ -297,7 +297,7 @@
         "enum": [
           "in_flight",
           "success",
-          "retryable_error",
+          "transient_error",
           "rejected",
           "timeout",
           "not_found"

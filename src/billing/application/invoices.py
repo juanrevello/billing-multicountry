@@ -22,7 +22,7 @@ from billing.infra.db.repository import DuplicateIdempotencyKeyError, InvoiceRep
 from billing.infra.retry import retrying
 
 _ATTEMPT_OUTCOMES: dict[type[ProviderError], AttemptOutcome] = {
-    ProviderTransientError: AttemptOutcome.RETRYABLE_ERROR,
+    ProviderTransientError: AttemptOutcome.TRANSIENT_ERROR,
     ProviderTimeoutError: AttemptOutcome.TIMEOUT,
     ProviderRejectedError: AttemptOutcome.REJECTED,
 }

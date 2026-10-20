@@ -40,9 +40,7 @@ class Invoice(Base):
     external_reference: Mapped[str | None] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    attempts: Mapped[list[InvoiceAttempt]] = relationship(
-        back_populates="invoice", order_by="InvoiceAttempt.started_at"
-    )
+    attempts: Mapped[list[InvoiceAttempt]] = relationship(order_by="InvoiceAttempt.started_at")
 
 
 class InvoiceAttempt(Base):
@@ -58,5 +56,3 @@ class InvoiceAttempt(Base):
     error: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     duration_ms: Mapped[int | None]
-
-    invoice: Mapped[Invoice] = relationship(back_populates="attempts")

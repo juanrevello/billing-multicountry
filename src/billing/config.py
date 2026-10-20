@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from functools import cache, lru_cache
+from functools import cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     provider_backoff_base_seconds: float = 0.5
 
 
-@lru_cache
+@cache
 def get_settings() -> Settings:
     return Settings()
 
