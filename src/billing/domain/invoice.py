@@ -19,3 +19,9 @@ class AttemptOutcome(StrEnum):
     REJECTED = "rejected"
     TIMEOUT = "timeout"
     NOT_FOUND = "not_found"
+
+
+class InvoiceErrorCode(StrEnum):
+    PROVIDER_REJECTED = "provider_rejected"
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
+    PROVIDER_TIMEOUT = "provider_timeout"

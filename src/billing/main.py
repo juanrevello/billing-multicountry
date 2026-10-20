@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from billing.api import health, providers
+from billing.api import health, invoices, providers
+from billing.api.problems import install_problem_handlers
 from billing.config import get_settings
 from billing.domain.registry import close_providers, discover, provider_classes
 from billing.infra.db.migrate import upgrade_to_head
+from billing.infra.db.session import engine
 from billing.logging import setup_logging
 
 settings = get_settings()
@@ -31,9 +33,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     logger.info("app started", extra={"environment": settings.environment})
     yield
     await close_providers()
+    await engine.dispose()
     logger.info("app stopped")
 
 
 app = FastAPI(title="Billing Multi-Country", version="0.1.0", lifespan=lifespan)
 app.include_router(health.router)
 app.include_router(providers.router)
+app.include_router(invoices.router)
+install_problem_handlers(app)
