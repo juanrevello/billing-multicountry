@@ -7,13 +7,14 @@ from typing import Any
 
 from billing.domain.invoice import AttemptKind, AttemptOutcome, InvoiceStatus
 from billing.domain.provider import (
-    InvoiceData,
     InvoiceProvider,
     ProviderError,
+    ProviderInvoice,
     ProviderRejectedError,
     ProviderResult,
     ProviderTimeoutError,
     ProviderTransientError,
+    UnsupportedCurrencyError,
 )
 from billing.domain.registry import get_provider
 from billing.infra.db.models import Invoice
@@ -25,12 +26,6 @@ _ATTEMPT_OUTCOMES: dict[type[ProviderError], AttemptOutcome] = {
     ProviderTimeoutError: AttemptOutcome.TIMEOUT,
     ProviderRejectedError: AttemptOutcome.REJECTED,
 }
-
-
-class UnsupportedCurrencyError(ValueError):
-    def __init__(self, country_code: str, currency: str, supported: frozenset[str]) -> None:
-        super().__init__(f"{country_code} does not support {currency}")
-        self.supported = sorted(supported)
 
 
 class IdempotencyKeyConflictError(Exception):
@@ -64,7 +59,7 @@ class IssueInvoiceCommand:
 
 
 @dataclass(frozen=True)
-class IssueResult:
+class IssueInvoiceResult:
     invoice: Invoice
     replayed: bool = False
     # Why the invoice is not issued: the last provider error.
@@ -87,7 +82,7 @@ class InvoiceService:
     async def get(self, invoice_id: uuid.UUID) -> Invoice | None:
         return await self.repository.get_with_attempts(invoice_id)
 
-    async def issue(self, command: IssueInvoiceCommand) -> IssueResult:
+    async def issue(self, command: IssueInvoiceCommand) -> IssueInvoiceResult:
         provider = get_provider(command.country_code)
         if command.currency not in provider.supported_currencies:
             raise UnsupportedCurrencyError(
@@ -106,11 +101,11 @@ class InvoiceService:
         if not command.matches(invoice):
             raise IdempotencyKeyConflictError(invoice.id)
         if invoice.status is InvoiceStatus.ISSUED:
-            return IssueResult(invoice, replayed=True)
+            return IssueInvoiceResult(invoice, replayed=True)
 
         return await self._resume(invoice, provider)
 
-    async def _resume(self, invoice: Invoice, provider: InvoiceProvider) -> IssueResult:
+    async def _resume(self, invoice: Invoice, provider: InvoiceProvider) -> IssueInvoiceResult:
         """Never issue twice: ask the provider first whether a previous attempt got through."""
         lookup = await self._call_with_retry(
             invoice,
@@ -120,14 +115,14 @@ class InvoiceService:
         )
         if lookup.error is not None:
             # We can't tell whether it was issued, so its status stays as is.
-            return IssueResult(invoice, error=lookup.error)
+            return IssueInvoiceResult(invoice, error=lookup.error)
         if lookup.result is not None:
             return await self._mark_issued(invoice, lookup.result)
         return await self._issue(invoice, provider)
 
-    async def _issue(self, invoice: Invoice, provider: InvoiceProvider) -> IssueResult:
+    async def _issue(self, invoice: Invoice, provider: InvoiceProvider) -> IssueInvoiceResult:
         payload = provider.build_payload(
-            InvoiceData(
+            ProviderInvoice(
                 invoice_id=invoice.id,
                 entity_id=invoice.entity_id,
                 amount=invoice.amount,
@@ -145,7 +140,7 @@ class InvoiceService:
         unknown = outcome.timed_out and not isinstance(outcome.error, ProviderRejectedError)
         status = InvoiceStatus.PENDING if unknown else InvoiceStatus.FAILED
         invoice = await self.repository.set_status(invoice.id, status)
-        return IssueResult(invoice, error=outcome.error)
+        return IssueInvoiceResult(invoice, error=outcome.error)
 
     async def _call_with_retry(
         self,
@@ -199,11 +194,11 @@ class InvoiceService:
         )
         return result
 
-    async def _mark_issued(self, invoice: Invoice, result: ProviderResult) -> IssueResult:
+    async def _mark_issued(self, invoice: Invoice, result: ProviderResult) -> IssueInvoiceResult:
         invoice = await self.repository.set_status(
             invoice.id, InvoiceStatus.ISSUED, external_reference=result.external_reference
         )
-        return IssueResult(invoice)
+        return IssueInvoiceResult(invoice)
 
     @staticmethod
     def _new_invoice(command: IssueInvoiceCommand, provider: InvoiceProvider) -> Invoice:

@@ -3,8 +3,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from billing.api import health, invoices, providers
 from billing.api.problems import install_problem_handlers, install_problem_schema
+from billing.api.routes import health, invoices, providers
 from billing.domain.registry import close_providers, discover
 from billing.infra.db.models import Base
 from billing.infra.db.session import engine

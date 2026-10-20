@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from billing.domain.provider import InvoiceData, ProviderRejectedError, ProviderResult
+from billing.domain.provider import ProviderInvoice, ProviderRejectedError, ProviderResult
 from billing.domain.registry import register
 from billing.infra.http import HttpInvoiceProvider, response_body
 
@@ -12,7 +12,7 @@ class BrazilProvider(HttpInvoiceProvider):
     name = "sefaz"
     supported_currencies = frozenset({"BRL"})
 
-    def build_payload(self, invoice: InvoiceData) -> dict[str, Any]:
+    def build_payload(self, invoice: ProviderInvoice) -> dict[str, Any]:
         return {
             "reference": str(invoice.invoice_id),
             "recipient": {"document": invoice.entity_id},

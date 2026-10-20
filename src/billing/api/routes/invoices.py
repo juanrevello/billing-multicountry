@@ -3,21 +3,19 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Header, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from billing.api.problems import Problem, problem_doc
-from billing.application.invoicing import (
+from billing.application.invoices import (
     IdempotencyKeyConflictError,
     InvoiceInProgressError,
     InvoiceService,
     IssueInvoiceCommand,
-    IssueResult,
-    UnsupportedCurrencyError,
+    IssueInvoiceResult,
 )
 from billing.domain.invoice import AttemptKind, AttemptOutcome, InvoiceStatus
-from billing.domain.provider import ProviderRejectedError
+from billing.domain.provider import ProviderRejectedError, UnsupportedCurrencyError
 from billing.domain.registry import UnsupportedCountryError
 from billing.infra.db.repository import InvoiceRepository
 from billing.infra.db.session import sessionmaker
@@ -93,10 +91,11 @@ IdempotencyKey = Annotated[
 )
 async def issue_invoice(
     body: InvoiceIn,
-    key: IdempotencyKey,
+    idempotency_key: IdempotencyKey,
     service: Service,
+    response: Response,
 ):
-    command = IssueInvoiceCommand(idempotency_key=key, **body.model_dump())
+    command = IssueInvoiceCommand(idempotency_key=idempotency_key, **body.model_dump())
     try:
         result = await service.issue(command)
     except UnsupportedCountryError:
@@ -119,7 +118,7 @@ async def issue_invoice(
             409,
             "/problems/idempotency-key-conflict",
             "Idempotency-Key reused with a different body",
-            f"Idempotency-Key {key} was already used for another request",
+            f"Idempotency-Key {idempotency_key} was already used for another request",
             invoice_id=exc.invoice_id,
         ) from None
     except InvoiceInProgressError:
@@ -129,37 +128,37 @@ async def issue_invoice(
             "Invoice in progress",
             "Another request with this Idempotency-Key is being processed; retry later",
         ) from None
-    return _issue_response(result)
 
-
-def _issue_response(result: IssueResult) -> JSONResponse | InvoiceOut:
     invoice = result.invoice
-    body = InvoiceOut.model_validate(invoice)
-    match invoice.status:
-        case InvoiceStatus.ISSUED if result.replayed:
-            return JSONResponse(body.model_dump(mode="json"), status_code=200)
-        case InvoiceStatus.ISSUED:
-            return body
-        case InvoiceStatus.PENDING:
-            return JSONResponse(body.model_dump(mode="json"), status_code=202)
-        case InvoiceStatus.FAILED if isinstance(result.error, ProviderRejectedError):
-            raise Problem(
-                422,
-                "/problems/provider-rejected",
-                "Invoice rejected by provider",
-                str(result.error),
-                invoice_id=invoice.id,
-                invoice_status=invoice.status,
-            )
-        case _:
-            raise Problem(
-                502,
-                "/problems/provider-unavailable",
-                "Provider unavailable",
-                str(result.error),
-                invoice_id=invoice.id,
-                invoice_status=invoice.status,
-            )
+    if invoice.status is InvoiceStatus.FAILED:
+        raise _failure_problem(result)
+    if invoice.status is InvoiceStatus.PENDING:
+        response.status_code = 202
+    elif result.replayed:
+        response.status_code = 200
+    return invoice
+
+
+def _failure_problem(result: IssueInvoiceResult) -> Problem:
+    """The provider failed for good: 422 if it rejected the data, 502 if it was unavailable."""
+    invoice = result.invoice
+    if isinstance(result.error, ProviderRejectedError):
+        return Problem(
+            422,
+            "/problems/provider-rejected",
+            "Invoice rejected by provider",
+            str(result.error),
+            invoice_id=invoice.id,
+            invoice_status=invoice.status,
+        )
+    return Problem(
+        502,
+        "/problems/provider-unavailable",
+        "Provider unavailable",
+        str(result.error),
+        invoice_id=invoice.id,
+        invoice_status=invoice.status,
+    )
 
 
 @router.get(

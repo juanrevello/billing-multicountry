@@ -6,7 +6,7 @@ from typing import Any, ClassVar
 
 
 @dataclass(frozen=True)
-class InvoiceData:
+class ProviderInvoice:
     invoice_id: uuid.UUID
     entity_id: str
     amount: Decimal
@@ -46,13 +46,19 @@ class ProviderRejectedError(ProviderError):
     """4xx: the provider refused the data; retrying will not help."""
 
 
+class UnsupportedCurrencyError(ValueError):
+    def __init__(self, country_code: str, currency: str, supported: frozenset[str]) -> None:
+        super().__init__(f"{country_code} does not support {currency}")
+        self.supported = sorted(supported)
+
+
 class InvoiceProvider(ABC):
     country_code: ClassVar[str]
     name: ClassVar[str]
     supported_currencies: ClassVar[frozenset[str]]
 
     @abstractmethod
-    def build_payload(self, invoice: InvoiceData) -> dict[str, Any]: ...
+    def build_payload(self, invoice: ProviderInvoice) -> dict[str, Any]: ...
 
     @abstractmethod
     async def issue(self, payload: dict[str, Any]) -> ProviderResult: ...

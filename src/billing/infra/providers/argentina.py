@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from billing.domain.provider import InvoiceData, ProviderRejectedError, ProviderResult
+from billing.domain.provider import ProviderInvoice, ProviderRejectedError, ProviderResult
 from billing.domain.registry import register
 from billing.infra.http import HttpInvoiceProvider, response_body
 
@@ -15,7 +15,7 @@ class ArgentinaProvider(HttpInvoiceProvider):
     name = "arca"
     supported_currencies = frozenset(CURRENCY_CODES)
 
-    def build_payload(self, invoice: InvoiceData) -> dict[str, Any]:
+    def build_payload(self, invoice: ProviderInvoice) -> dict[str, Any]:
         return {
             "external_id": str(invoice.invoice_id),
             "customer_id": invoice.entity_id,
