@@ -25,7 +25,9 @@ class BrazilProvider(HttpInvoiceProvider):
         body = response_body(response)
         if response.status_code != 200:
             raise ProviderRejectedError(
-                _error_message(body), status_code=response.status_code, body=body
+                _error_message(body, response.status_code),
+                status_code=response.status_code,
+                body=body,
             )
         return ProviderResult(body["access_key"], response.status_code, body)
 
@@ -36,10 +38,14 @@ class BrazilProvider(HttpInvoiceProvider):
             return None
         if response.status_code != 200:
             raise ProviderRejectedError(
-                _error_message(body), status_code=response.status_code, body=body
+                _error_message(body, response.status_code),
+                status_code=response.status_code,
+                body=body,
             )
         return ProviderResult(body["access_key"], response.status_code, body)
 
 
-def _error_message(body: dict[str, Any]) -> str:
-    return f"{body.get('code')}: {body.get('reason')}"
+def _error_message(body: dict[str, Any], status_code: int) -> str:
+    if "reason" not in body:
+        return f"Provider returned {status_code}"
+    return f"{body.get('code')}: {body['reason']}"

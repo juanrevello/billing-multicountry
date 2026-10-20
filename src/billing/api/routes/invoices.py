@@ -98,12 +98,12 @@ async def issue_invoice(
     command = IssueInvoiceCommand(idempotency_key=idempotency_key, **body.model_dump())
     try:
         result = await service.issue(command)
-    except UnsupportedCountryError:
+    except UnsupportedCountryError as exc:
         raise Problem(
             422,
             "/problems/unsupported-country",
             "Unsupported country",
-            f"No provider registered for {body.country_code}",
+            str(exc),
         ) from None
     except UnsupportedCurrencyError as exc:
         raise Problem(

@@ -28,7 +28,9 @@ class ArgentinaProvider(HttpInvoiceProvider):
         body = response_body(response)
         if response.status_code not in (200, 201):
             raise ProviderRejectedError(
-                _error_message(body), status_code=response.status_code, body=body
+                _error_message(body, response.status_code),
+                status_code=response.status_code,
+                body=body,
             )
         return ProviderResult(body["cae"], response.status_code, body)
 
@@ -39,11 +41,15 @@ class ArgentinaProvider(HttpInvoiceProvider):
             return None
         if response.status_code != 200:
             raise ProviderRejectedError(
-                _error_message(body), status_code=response.status_code, body=body
+                _error_message(body, response.status_code),
+                status_code=response.status_code,
+                body=body,
             )
         return ProviderResult(body["cae"], response.status_code, body)
 
 
-def _error_message(body: dict[str, Any]) -> str:
-    errors = body.get("errors") or [{}]
+def _error_message(body: dict[str, Any], status_code: int) -> str:
+    errors = body.get("errors")
+    if not errors:
+        return f"Provider returned {status_code}"
     return "; ".join(f"{e.get('code')}: {e.get('message')}" for e in errors)

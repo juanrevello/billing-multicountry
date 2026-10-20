@@ -8,7 +8,8 @@ _instances: dict[str, InvoiceProvider] = {}
 
 
 class UnsupportedCountryError(LookupError):
-    pass
+    def __init__(self, country_code: str) -> None:
+        super().__init__(f"No provider registered for {country_code}")
 
 
 def register[P: type[InvoiceProvider]](cls: P) -> P:
