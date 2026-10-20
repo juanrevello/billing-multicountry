@@ -26,7 +26,7 @@ def retrying(country_code: str) -> AsyncRetrying:
     return AsyncRetrying(
         stop=stop_after_attempt(settings.max_retries + 1),
         wait=wait_exponential_jitter(
-            initial=settings.backoff_base_seconds, jitter=settings.backoff_base_seconds
+            multiplier=settings.backoff_base_seconds, jitter=settings.backoff_base_seconds
         ),
         retry=retry_if_exception_type(RETRYABLE_ERRORS),
         before_sleep=_log_retry,
