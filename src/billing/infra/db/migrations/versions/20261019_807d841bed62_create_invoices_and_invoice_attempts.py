@@ -42,7 +42,6 @@ def upgrade() -> None:
         sa.Column("external_reference", sa.String(length=128), nullable=True),
         sa.Column("error_code", sa.String(length=64), nullable=True),
         sa.Column("error_detail", sa.Text(), nullable=True),
-        sa.Column("locked_until", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -88,12 +87,8 @@ def upgrade() -> None:
             ["invoice_id"], ["invoices.id"], name=op.f("fk_invoice_attempts_invoice_id_invoices")
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_invoice_attempts")),
-        sa.UniqueConstraint(
-            "invoice_id",
-            "attempt_number",
-            name=op.f("uq_invoice_attempts_invoice_id_attempt_number"),
-        ),
     )
+    op.create_index(op.f("ix_invoice_attempts_invoice_id"), "invoice_attempts", ["invoice_id"])
 
 
 def downgrade() -> None:

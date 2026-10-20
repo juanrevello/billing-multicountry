@@ -92,10 +92,11 @@ class InvoiceRepository:
         error_code: str | None = None,
         error_detail: str | None = None,
     ) -> Invoice:
+        """Never downgrades an issued invoice, e.g. if a concurrent retry already issued it."""
         async with self._sessionmaker.begin() as session:
-            result = await session.execute(
+            invoice = await session.scalar(
                 update(Invoice)
-                .where(Invoice.id == invoice_id)
+                .where(Invoice.id == invoice_id, Invoice.status != InvoiceStatus.ISSUED)
                 .values(
                     status=status,
                     external_reference=external_reference,
@@ -104,4 +105,4 @@ class InvoiceRepository:
                 )
                 .returning(Invoice)
             )
-            return result.scalar_one()
+            return invoice or await session.get_one(Invoice, invoice_id)

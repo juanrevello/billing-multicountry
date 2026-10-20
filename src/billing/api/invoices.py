@@ -9,14 +9,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from billing.api.problems import PROBLEM_MEDIA_TYPE, Problem
 from billing.application.invoicing import (
-    IdempotencyKeyReusedError,
+    IdempotencyKeyConflictError,
+    InvoiceInProgressError,
     InvoiceService,
     IssueInvoiceCommand,
+    IssueResult,
     UnsupportedCurrencyError,
 )
 from billing.domain.invoice import AttemptKind, AttemptOutcome, InvoiceErrorCode, InvoiceStatus
 from billing.domain.registry import UnsupportedCountryError
-from billing.infra.db.models import Invoice
 from billing.infra.db.repository import InvoiceRepository
 from billing.infra.db.session import sessionmaker
 
@@ -35,14 +36,14 @@ class InvoiceIn(BaseModel):
 class InvoiceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
+    invoice_id: uuid.UUID = Field(validation_alias="id")
     status: InvoiceStatus
+    provider_used: str = Field(validation_alias="provider")
+    external_reference: str | None
     entity_id: str
     amount: Decimal
     currency: str
     country_code: str
-    provider: str
-    external_reference: str | None
     error_code: str | None
     error_detail: str | None
     created_at: datetime
@@ -76,24 +77,10 @@ def get_invoice_service() -> InvoiceService:
 Service = Annotated[InvoiceService, Depends(get_invoice_service)]
 
 
-def idempotency_key(
-    key: Annotated[
-        str,
-        Header(alias="Idempotency-Key", description="UUIDv7 that identifies this invoice request"),
-    ],
-) -> uuid.UUID:
-    try:
-        value = uuid.UUID(key)
-    except ValueError:
-        value = None
-    if value is None or value.version != 7:
-        raise Problem(
-            422,
-            "/problems/invalid-idempotency-key",
-            "Invalid Idempotency-Key",
-            "Idempotency-Key must be a UUIDv7",
-        )
-    return value
+IdempotencyKey = Annotated[
+    uuid.UUID,
+    Header(alias="Idempotency-Key", description="UUID that identifies this invoice request"),
+]
 
 
 def _problem_doc(description: str) -> dict[str, Any]:
@@ -105,20 +92,21 @@ def _problem_doc(description: str) -> dict[str, Any]:
     status_code=201,
     response_model=InvoiceOut,
     responses={
+        200: {"model": InvoiceOut, "description": "Replay of an invoice already issued"},
         202: {"model": InvoiceOut, "description": "Provider timed out; outcome unknown"},
-        409: _problem_doc("Idempotency-Key already used"),
+        409: _problem_doc("Idempotency-Key reused with another body, or a concurrent request"),
         422: _problem_doc("Invalid input, unsupported country/currency or provider rejection"),
         502: _problem_doc("Provider unavailable after retries"),
     },
 )
 async def issue_invoice(
     body: InvoiceIn,
-    key: Annotated[uuid.UUID, Depends(idempotency_key)],
+    key: IdempotencyKey,
     service: Service,
 ):
     command = IssueInvoiceCommand(idempotency_key=key, **body.model_dump())
     try:
-        invoice = await service.issue(command)
+        result = await service.issue(command)
     except UnsupportedCountryError:
         raise Problem(
             422,
@@ -134,19 +122,30 @@ async def issue_invoice(
             str(exc),
             supported_currencies=exc.supported,
         ) from None
-    except IdempotencyKeyReusedError:
+    except IdempotencyKeyConflictError as exc:
         raise Problem(
             409,
-            "/problems/idempotency-key-reused",
-            "Idempotency-Key already used",
-            f"An invoice already exists for Idempotency-Key {key}",
+            "/problems/idempotency-key-conflict",
+            "Idempotency-Key reused with a different body",
+            f"Idempotency-Key {key} was already used for another request",
+            invoice_id=exc.invoice_id,
         ) from None
-    return _issue_response(invoice)
+    except InvoiceInProgressError:
+        raise Problem(
+            409,
+            "/problems/invoice-in-progress",
+            "Invoice in progress",
+            "Another request with this Idempotency-Key is being processed; retry later",
+        ) from None
+    return _issue_response(result)
 
 
-def _issue_response(invoice: Invoice) -> JSONResponse | InvoiceOut:
+def _issue_response(result: IssueResult) -> JSONResponse | InvoiceOut:
+    invoice = result.invoice
     body = InvoiceOut.model_validate(invoice)
     match invoice.status, invoice.error_code:
+        case InvoiceStatus.ISSUED, _ if result.replayed:
+            return JSONResponse(body.model_dump(mode="json"), status_code=200)
         case InvoiceStatus.ISSUED, _:
             return body
         case InvoiceStatus.PENDING, _:

@@ -12,7 +12,6 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
-    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -61,7 +60,6 @@ class Invoice(Base):
     external_reference: Mapped[str | None] = mapped_column(String(128))
     error_code: Mapped[str | None] = mapped_column(String(64))
     error_detail: Mapped[str | None] = mapped_column(Text)
-    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -74,10 +72,9 @@ class Invoice(Base):
 
 class InvoiceAttempt(Base):
     __tablename__ = "invoice_attempts"
-    __table_args__ = (UniqueConstraint("invoice_id", "attempt_number"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid7)
-    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id"))
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id"), index=True)
     attempt_number: Mapped[int]
     kind: Mapped[AttemptKind] = mapped_column(_str_enum(AttemptKind, "attempt_kind"))
     request_payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
