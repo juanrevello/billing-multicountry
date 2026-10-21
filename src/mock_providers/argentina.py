@@ -2,7 +2,7 @@ import random
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -34,7 +34,7 @@ def _server_error() -> JSONResponse:
 
 
 @router.post("/vouchers", status_code=201, response_model=VoucherOut)
-async def issue_voucher(body: VoucherIn, scenario: IssueScenario):
+async def issue_voucher(body: VoucherIn, scenario: IssueScenario, response: Response):
     if scenario is Scenario.ERROR:
         return _server_error()
     if scenario is Scenario.REJECT:
@@ -44,8 +44,8 @@ async def issue_voucher(body: VoucherIn, scenario: IssueScenario):
         )
 
     # Same external_id returns the voucher already issued instead of a new one.
-    existing = _vouchers.get(body.external_id)
-    if existing is None:
+    voucher = _vouchers.get(body.external_id)
+    if voucher is None:
         voucher = VoucherOut(
             external_id=body.external_id,
             voucher_number=len(_vouchers) + 1,
@@ -54,13 +54,12 @@ async def issue_voucher(body: VoucherIn, scenario: IssueScenario):
             currency_code=body.currency_code,
         )
         _vouchers[body.external_id] = voucher
+    else:
+        response.status_code = 200
 
     # Timeout: the voucher is issued but the response never arrives in time.
     if scenario is Scenario.TIMEOUT:
         await hang()
-
-    if existing is not None:
-        return JSONResponse(existing.model_dump(mode="json"), status_code=200)
     return voucher
 
 

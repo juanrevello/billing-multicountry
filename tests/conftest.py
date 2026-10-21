@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 PROVIDERS_URL = "http://providers.test"
 
-# Always the ephemeral test DB (`docker compose up -d db-test`), never the one in .env.
+# Always the ephemeral test DB (`docker compose up -d --wait db-test`), never the one in .env.
 TEST_DATABASE_URL = (
     "postgresql+asyncpg://test_user:test_user_password@localhost:5433/invoicing_test"
 )

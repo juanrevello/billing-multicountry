@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +14,6 @@ class MockSettings(BaseSettings):
     timeout_seconds: float = 30.0
 
 
-@lru_cache
+@cache
 def get_settings() -> MockSettings:
     return MockSettings()
