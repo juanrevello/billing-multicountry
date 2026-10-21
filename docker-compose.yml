@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_user_password
+      POSTGRES_DB: invoicing
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+asyncpg://test_user:test_user_password@db:5432/invoicing
+      PROVIDER_BASE_URL: http://mock-providers:8001
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      mock-providers:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mock-providers:
+    build: .
+    command: ["uvicorn", "mock_providers.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      MOCK_SUCCESS_WEIGHT: 80
+      MOCK_ERROR_WEIGHT: 10
+      MOCK_TIMEOUT_WEIGHT: 5
+      MOCK_REJECT_WEIGHT: 5
+      MOCK_TIMEOUT_SECONDS: 30
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Ephemeral DB for the integration tests; only starts when named: `docker compose up -d db-test`.
+  db-test:
+    image: postgres:16-alpine
+    profiles: [test]
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_user_password
+      POSTGRES_DB: invoicing_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  pgdata:
